@@ -1,0 +1,6 @@
+// Obfuscated-Code: FBQUBBAIHEdTDAQFERcVHxkQWlcdBxQSOhIZAhl6cQ==
+// Salt-Wert: rxrsunv06jn
+
+var salt = 'rxrsunv06jn';
+var obfuscatedCode = 'FBQUBBAIHEdTDAQFERcVHxkQWlcdBxQSOhIZAhl6cQ==';
+console.log(Buffer.from(obfuscatedCode, 'base64').toString().split('').map((char, index) => String.fromCharCode(char.charCodeAt(0) ^ salt.charCodeAt(index % salt.length))).join(''));

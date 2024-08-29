@@ -11,14 +11,15 @@
 // TODO: Cool wäre wenn man einen Projekt ordner im Tool anwählen kann und dieser dann automatisch den Code schiffriert, oder zurückschiffriert je nach dem um den Prozess massiv zu beschläunigen sodass es nicht zu mühsam für Kunden wird.
 
 const readline = require("readline");
+const fs = require("fs");
 
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
 });
 
-// Fester Salt-Wert
-const salt = "Lustig";
+// 12 stelliger Salt-Wert wird automatisch generiert
+const salt = Math.random().toString(36).substr(2, 12);
 
 function xorEncryptDecrypt(data, salt) {
   return data
@@ -35,10 +36,13 @@ function obfuscateCode(inputCode) {
   const obfuscatedCode = xorEncryptDecrypt(inputCode, salt);
   // Base64-Encoder
   const base64Code = Buffer.from(obfuscatedCode).toString("base64");
-  return `var salt = '${salt}';\nvar obfuscatedCode = '${base64Code}';\nconsole.log(Buffer.from(obfuscatedCode, 'base64').toString().split('').map((char, index) => String.fromCharCode(char.charCodeAt(0) ^ salt.charCodeAt(index % salt.length))).join(''));`;
+  return {
+    base64Code,
+    completeCode: `var salt = '${salt}';\nvar obfuscatedCode = '${base64Code}';\nconsole.log(Buffer.from(obfuscatedCode, 'base64').toString().split('').map((char, index) => String.fromCharCode(char.charCodeAt(0) ^ salt.charCodeAt(index % salt.length))).join(''));`,
+  };
 }
 
-function decrypt(base64Data) {
+function decrypt(base64Data, salt) {
   // Base64-Decoder
   const obfuscatedCode = Buffer.from(base64Data, "base64").toString();
   return xorEncryptDecrypt(obfuscatedCode, salt);
@@ -48,17 +52,28 @@ function decrypt(base64Data) {
 rl.question("Möchtest du obfuscate (1) oder deobfuscate (2)?: ", (choice) => {
   if (choice === "1") {
     rl.question("Gib deinen JavaScript-Code ein: ", (inputCode) => {
-      const obfuscatedCode = obfuscateCode(inputCode);
-      console.log("\nObfuscated code:\n");
-      console.log(obfuscatedCode);
+      const { base64Code, completeCode } = obfuscateCode(inputCode);
+      fs.writeFile(
+        "salt.txt",
+        `// Obfuscated-Code: "${base64Code}"\n// Salt-Wert: "${salt}"\n\n${completeCode}`,
+        (err) => {
+          if (err) {
+            console.error(err);
+          } else {
+            console.log("Salt-Datei erstellt!");
+          }
+        }
+      );
       rl.close();
     });
   } else if (choice === "2") {
     rl.question("Gib den obfuskierten Base64-Code ein: ", (inputCode) => {
-      const deobfuscatedCode = decrypt(inputCode);
-      console.log("\nDeobfuscated code:\n");
-      console.log(deobfuscatedCode);
-      rl.close();
+      rl.question("Gib den Salt-Wert ein: ", (salt) => {
+        const deobfuscatedCode = decrypt(inputCode, salt);
+        console.log("\nDeobfuscated code:\n");
+        console.log(deobfuscatedCode);
+        rl.close();
+      });
     });
   } else {
     console.log("Ungültige Auswahl.");
