@@ -18,8 +18,25 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
-// 12 stelliger Salt-Wert wird automatisch generiert
+// 12-stelliger Salt-Wert wird automatisch generiert
 const salt = Math.random().toString(36).substr(2, 12);
+
+// Funktion, um den Dateinamen zu generieren, wenn eine Datei bereits existiert
+function generateUniqueFilename(baseName, extension) {
+  let counter = 0;
+  let filename = `${baseName}${extension}`;
+  
+  // Solange eine Datei mit dem aktuellen Namen existiert, erhöhe den Zähler
+  while (fs.existsSync(filename)) {
+    counter += 1;
+    filename = `${baseName}${counter}${extension}`;
+  }
+  
+  return filename;
+}
+
+// Generiere einen eindeutigen Dateinamen
+const uniqueFilename = generateUniqueFilename('salt', '.txt');
 
 function xorEncryptDecrypt(data, salt) {
   return data
@@ -39,68 +56,89 @@ function obfuscateCode(inputCode) {
   return {
     base64Code,
     completeCode: `
-// Der Salt-Wert (muss geheim gehalten werden)
-var salt = '${salt}';
+fetch('/getSalt')  // Der Endpunkt, der den Salt-Wert zurückgibt
+    .then(response => response.text())
+    .then(salt => {
+        var obfuscatedCode = '${base64Code}';
 
-// Verschlüsselter Base64-Code (verschlüsselter und codierter JavaScript-Code)
-var obfuscatedCode = '${base64Code}';
+        function xorEncryptDecrypt(data, salt) {
+            return data.split('').map((char, index) => {
+                return String.fromCharCode(char.charCodeAt(0) ^ salt.charCodeAt(index % salt.length));
+            }).join('');
+        }
 
-// XOR-Decryption Funktion mit Base64-Decoding
-function xorEncryptDecrypt(data, salt) {
-    return data.split('').map((char, index) => {
-        return String.fromCharCode(char.charCodeAt(0) ^ salt.charCodeAt(index % salt.length));
-    }).join('');
-}
+        function executeDecryptedCode(encodedCode, salt) {
+            var decodedString = atob(encodedCode);
+            console.log("Decoded Base64 String:", decodedString); // Debugging
+            var decryptedCode = xorEncryptDecrypt(decodedString, salt);
+            console.log("Decrypted Code:", decryptedCode); // Debugging
+            eval(decryptedCode);
+        }
 
-function executeDecryptedCode(encodedCode, salt) {
-    // Base64-Decode
-    var decodedString = atob(encodedCode);
-    // XOR-Decryption
-    var decryptedCode = xorEncryptDecrypt(decodedString, salt);
-    // Dynamische Ausführung des entschlüsselten JavaScript-Codes
-    eval(decryptedCode);
-}
-
-// Ausführen des entschlüsselten Codes
-executeDecryptedCode(obfuscatedCode, salt);
+        executeDecryptedCode(obfuscatedCode, salt);
+    });
 `,
   };
 }
 
 function decrypt(base64Data, salt) {
   // Base64-Decoder
-  const obfuscatedCode = Buffer.from(base64Data, "base64").toString();
-  return xorEncryptDecrypt(obfuscatedCode, salt);
+  try {
+    const obfuscatedCode = Buffer.from(base64Data, "base64").toString();
+    console.log("Obfuscated Code (after Base64 Decoding):", obfuscatedCode); // Debugging
+    return xorEncryptDecrypt(obfuscatedCode, salt);
+  } catch (error) {
+    console.error("Error during decryption:", error);
+    return null;
+  }
 }
 
 // Funktion zum Auswählen von Obfuskation oder Deobfuskation
 rl.question("Möchtest du obfuscate (1) oder deobfuscate (2)?: ", (choice) => {
   if (choice === "1") {
-    rl.question("Gib deinen JavaScript-Code ein: ", (inputCode) => {
-      const { base64Code, completeCode } = obfuscateCode(inputCode);
-      fs.writeFile(
-        "salt.txt",
-  `// Obfuscated-Code: "${base64Code}"
+    console.log("Füge deinen JavaScript-Code ein und drücke ENTER, wenn du fertig bist. (Drücke zweimal ENTER, um den Code zu beenden.)");
+
+    // Mehrzeilige Eingabe für Code-Snippet
+    let inputCode = '';
+    rl.on('line', (line) => {
+      if (line === '') {
+        rl.removeAllListeners('line');  // Verhindert weiteres Erfassen von Zeilen
+        const { base64Code, completeCode } = obfuscateCode(inputCode.trim());
+        fs.writeFile(
+          uniqueFilename,
+          `// Obfuscated-Code: "${base64Code}"
 // Salt-Wert: "${salt}"
 // Diesen Code können Sie ins Frontend hinzufügen:
 // -------------------------------------------
 ${completeCode}`,
-        (err) => {
-          if (err) {
-            console.error(err);
-          } else {
-            console.log("Salt-Datei erstellt!");
+          (err) => {
+            if (err) {
+              console.error(err);
+            } else {
+              console.log(`Salt-Datei erstellt: ${uniqueFilename}`);
+            }
+            rl.close();
           }
-        }
-      );
-      rl.close();
+        );
+      } else {
+        inputCode += line + '\n';
+      }
     });
+
   } else if (choice === "2") {
     rl.question("Gib den obfuskierten Base64-Code ein: ", (inputCode) => {
       rl.question("Gib den Salt-Wert ein: ", (salt) => {
-        const deobfuscatedCode = decrypt(inputCode, salt);
-        console.log("\nDeobfuscated code:\n");
-        console.log(deobfuscatedCode);
+        try {
+          const deobfuscatedCode = decrypt(inputCode, salt);
+          if (deobfuscatedCode) {
+            console.log("\nDeobfuscated code:\n");
+            console.log(deobfuscatedCode);
+          } else {
+            console.error("Fehler beim Deobfuscieren des Codes.");
+          }
+        } catch (error) {
+          console.error("Fehler beim Deobfuscieren:", error.message);
+        }
         rl.close();
       });
     });
