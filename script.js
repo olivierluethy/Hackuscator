@@ -38,7 +38,32 @@ function obfuscateCode(inputCode) {
   const base64Code = Buffer.from(obfuscatedCode).toString("base64");
   return {
     base64Code,
-    completeCode: `var salt = '${salt}';\nvar obfuscatedCode = '${base64Code}';\nconsole.log(Buffer.from(obfuscatedCode, 'base64').toString().split('').map((char, index) => String.fromCharCode(char.charCodeAt(0) ^ salt.charCodeAt(index % salt.length))).join(''));`,
+    completeCode: `
+// Der Salt-Wert (muss geheim gehalten werden)
+var salt = '${salt}';
+
+// Verschlüsselter Base64-Code (verschlüsselter und codierter JavaScript-Code)
+var obfuscatedCode = '${base64Code}';
+
+// XOR-Decryption Funktion mit Base64-Decoding
+function xorEncryptDecrypt(data, salt) {
+    return data.split('').map((char, index) => {
+        return String.fromCharCode(char.charCodeAt(0) ^ salt.charCodeAt(index % salt.length));
+    }).join('');
+}
+
+function executeDecryptedCode(encodedCode, salt) {
+    // Base64-Decode
+    var decodedString = atob(encodedCode);
+    // XOR-Decryption
+    var decryptedCode = xorEncryptDecrypt(decodedString, salt);
+    // Dynamische Ausführung des entschlüsselten JavaScript-Codes
+    eval(decryptedCode);
+}
+
+// Ausführen des entschlüsselten Codes
+executeDecryptedCode(obfuscatedCode, salt);
+`,
   };
 }
 
@@ -55,7 +80,11 @@ rl.question("Möchtest du obfuscate (1) oder deobfuscate (2)?: ", (choice) => {
       const { base64Code, completeCode } = obfuscateCode(inputCode);
       fs.writeFile(
         "salt.txt",
-        `// Obfuscated-Code: "${base64Code}"\n// Salt-Wert: "${salt}"\n\n${completeCode}`,
+  `// Obfuscated-Code: "${base64Code}"
+// Salt-Wert: "${salt}"
+// Diesen Code können Sie ins Frontend hinzufügen:
+// -------------------------------------------
+${completeCode}`,
         (err) => {
           if (err) {
             console.error(err);
